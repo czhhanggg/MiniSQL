@@ -19,14 +19,34 @@ IndexIterator::~IndexIterator() {
  * TODO: Student Implement
  */
 std::pair<GenericKey *, RowId> IndexIterator::operator*() {
-  ASSERT(false, "Not implemented yet.");
+  ASSERT(current_page_id != INVALID_PAGE_ID && page != nullptr, "Dereference end index iterator.");
+  ASSERT(item_index >= 0 && item_index < page->GetSize(), "Invalid index iterator offset.");
+  return page->GetItem(item_index);
 }
 
 /**
  * TODO: Student Implement
  */
 IndexIterator &IndexIterator::operator++() {
-  ASSERT(false, "Not implemented yet.");
+  if (current_page_id == INVALID_PAGE_ID || page == nullptr) {
+    return *this;
+  }
+  item_index++;
+  while (page != nullptr && item_index >= page->GetSize()) {
+    page_id_t old_page_id = current_page_id;
+    page_id_t next_page_id = page->GetNextPageId();
+    buffer_pool_manager->UnpinPage(old_page_id, false);
+    if (next_page_id == INVALID_PAGE_ID) {
+      current_page_id = INVALID_PAGE_ID;
+      page = nullptr;
+      item_index = 0;
+      return *this;
+    }
+    current_page_id = next_page_id;
+    page = reinterpret_cast<LeafPage *>(buffer_pool_manager->FetchPage(current_page_id)->GetData());
+    item_index = 0;
+  }
+  return *this;
 }
 
 bool IndexIterator::operator==(const IndexIterator &itr) const {
