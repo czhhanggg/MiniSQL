@@ -7,9 +7,6 @@
 #include "index/generic_key.h"
 #include "page/index_roots_page.h"
 
-/**
- * TODO: Student Implement
- */
 BPlusTree::BPlusTree(index_id_t index_id, BufferPoolManager *buffer_pool_manager, const KeyManager &KM,
                      int leaf_max_size, int internal_max_size)
     : index_id_(index_id),
