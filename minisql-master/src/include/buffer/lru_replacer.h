@@ -35,8 +35,11 @@ class LRUReplacer : public Replacer {
 
   size_t Size() override;
 
-private:
+ private:
   // add your own private member variables here
+  list<frame_id_t> lru_list_;                          // front = LRU (evict first), back = MRU
+  unordered_map<frame_id_t, list<frame_id_t>::iterator> lru_map_;  // O(1) lookup into list
+  mutex latch_;                                         // protects shared data structures
 };
 
 #endif  // MINISQL_LRU_REPLACER_H
