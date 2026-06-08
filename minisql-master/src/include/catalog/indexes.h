@@ -61,13 +61,19 @@ class IndexInfo {
   }
 
 /**
- * TODO: Student Implement
+ * Initialize the IndexInfo object.
+ * Step1: Store the index metadata.
+ * Step2: Map the index key columns to the table schema columns using key_map_.
+ *        Use Schema::ShallowCopySchema to create a key_schema_.
+ * Step3: Create the underlying B+ tree index structure.
  */
   void Init(IndexMetadata *meta_data, TableInfo *table_info, BufferPoolManager *buffer_pool_manager) {
-    // Step1: init index metadata and table info
-    // Step2: mapping index key to key schema
-    // Step3: call CreateIndex to create the index
-    ASSERT(false, "Not Implemented yet.");
+    // Step1: init index metadata
+    meta_data_ = meta_data;
+    // Step2: mapping index key to key schema (key_map_ stores column indices in table)
+    key_schema_ = Schema::ShallowCopySchema(table_info->GetSchema(), meta_data->GetKeyMapping());
+    // Step3: call CreateIndex to create the B+ tree index
+    index_ = CreateIndex(buffer_pool_manager, "bptree");
   }
 
   inline Index *GetIndex() { return index_; }

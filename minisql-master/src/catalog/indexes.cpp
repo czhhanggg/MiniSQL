@@ -40,10 +40,13 @@ uint32_t IndexMetadata::SerializeTo(char *buf) const {
 }
 
 /**
- * TODO: Student Implement
+ * Calculate the serialized size of IndexMetadata.
+ * Format: | magic_num(4) | index_id(4) | name_len(4) | index_name(variable) |
+ *         | table_id(4) | key_count(4) | key_map entries(key_count * 4) |
  */
 uint32_t IndexMetadata::GetSerializedSize() const {
-  return 0;
+  // 4 (magic) + 4 (index_id) + 4 (name_len) + index_name_ + 4 (table_id) + 4 (key_count) + key_map_ * 4
+  return 4 + 4 + MACH_STR_SERIALIZED_SIZE(index_name_) + 4 + 4 + key_map_.size() * 4;
 }
 
 uint32_t IndexMetadata::DeserializeFrom(char *buf, IndexMetadata *&index_meta) {
