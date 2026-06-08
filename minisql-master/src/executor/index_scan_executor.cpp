@@ -1,5 +1,7 @@
 #include "executor/executors/index_scan_executor.h"
 
+#include <algorithm>
+
 class RowidCompare {
  public:
   bool operator()(RowId rid1, RowId rid2) { return rid1.Get() < rid2.Get(); }
@@ -80,6 +82,7 @@ vector<RowId> IndexScanExecutor::IndexScan(AbstractExpressionRef predicate) {
     default:
       break;
   }
+  return {};
 }
 
 bool IndexScanExecutor::Next(Row *row, RowId *rid) {

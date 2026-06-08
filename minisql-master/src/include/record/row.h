@@ -92,7 +92,7 @@ class Row {
    */
   uint32_t GetSerializedSize(Schema *schema) const;
 
-  void GetKeyFromRow(const Schema *schema, const Schema *key_schema, Row &key_row);
+  void GetKeyFromRow(const Schema *schema, const Schema *key_schema, Row &key_row) const;
 
   inline const RowId GetRowId() const { return rid_; }
 

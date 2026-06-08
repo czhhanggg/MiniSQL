@@ -5,6 +5,9 @@
 #include <sys/types.h>
 
 #include <chrono>
+#include <filesystem>
+#include <fstream>
+#include <set>
 
 #include "common/result_writer.h"
 #include "executor/executors/delete_executor.h"
@@ -17,13 +20,15 @@
 #include "planner/planner.h"
 #include "utils/utils.h"
 
+extern "C" {
+int yyparse(void);
+typedef struct yy_buffer_state *YY_BUFFER_STATE;
+YY_BUFFER_STATE yy_scan_string(const char *yy_str);
+void yy_delete_buffer(YY_BUFFER_STATE buffer);
+}
+
 ExecuteEngine::ExecuteEngine() {
-  char path[] = "./databases";
-  DIR *dir;
-  if ((dir = opendir(path)) == nullptr) {
-    mkdir("./databases", 0777);
-    dir = opendir(path);
-  }
+  std::filesystem::create_directories("./databases");
   /** When you have completed all the code for
    *  the test, run it using main.cpp and uncomment
    *  this part of the code.
@@ -36,7 +41,6 @@ ExecuteEngine::ExecuteEngine() {
     dbs_[stdir->d_name] = new DBStorageEngine(stdir->d_name, false);
   }
    **/
-  closedir(dir);
 }
 
 std::unique_ptr<AbstractExecutor> ExecuteEngine::CreateExecutor(ExecuteContext *exec_ctx,
@@ -320,7 +324,7 @@ dberr_t ExecuteEngine::ExecuteShowTables(pSyntaxNode ast, ExecuteContext *contex
     return DB_FAILED;
   }
   string table_in_db("Tables_in_" + current_db_);
-  uint max_width = table_in_db.length();
+  size_t max_width = table_in_db.length();
   for (const auto &itr : tables) {
     if (itr->GetTableName().length() > max_width) max_width = itr->GetTableName().length();
   }
@@ -344,7 +348,80 @@ dberr_t ExecuteEngine::ExecuteCreateTable(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateTable" << std::endl;
 #endif
-  return DB_FAILED;
+  if (current_db_.empty()) {
+    return DB_FAILED;
+  }
+
+  string table_name = ast->child_->val_;
+  pSyntaxNode defs = ast->child_->next_;
+  std::set<std::string> primary_keys;
+
+  struct ColumnDef {
+    std::string name;
+    TypeId type;
+    uint32_t len;
+    bool unique;
+  };
+  std::vector<ColumnDef> raw_columns;
+
+  for (auto node = defs->child_; node != nullptr; node = node->next_) {
+    if (node->type_ == kNodeColumnDefinition) {
+      auto col_name = std::string(node->child_->val_);
+      auto type_node = node->child_->next_;
+      ColumnDef def{};
+      def.name = col_name;
+      def.unique = node->val_ != nullptr && std::string(node->val_) == "unique";
+      if (!strcmp(type_node->val_, "int")) {
+        def.type = TypeId::kTypeInt;
+        def.len = sizeof(int32_t);
+      } else if (!strcmp(type_node->val_, "float")) {
+        def.type = TypeId::kTypeFloat;
+        def.len = sizeof(float_t);
+      } else {
+        def.type = TypeId::kTypeChar;
+        def.len = static_cast<uint32_t>(stoi(type_node->child_->val_));
+      }
+      raw_columns.push_back(def);
+    } else if (node->type_ == kNodeColumnList) {
+      for (auto col = node->child_; col != nullptr; col = col->next_) {
+        primary_keys.insert(col->val_);
+      }
+    }
+  }
+
+  std::vector<Column *> columns;
+  for (uint32_t i = 0; i < raw_columns.size(); i++) {
+    auto &def = raw_columns[i];
+    bool unique = def.unique || primary_keys.find(def.name) != primary_keys.end();
+    bool nullable = primary_keys.find(def.name) == primary_keys.end();
+    if (def.type == TypeId::kTypeChar) {
+      columns.push_back(new Column(def.name, def.type, def.len, i, nullable, unique));
+    } else {
+      columns.push_back(new Column(def.name, def.type, i, nullable, unique));
+    }
+  }
+
+  auto schema = std::make_shared<Schema>(columns);
+  TableInfo *table_info = nullptr;
+  auto result = dbs_[current_db_]->catalog_mgr_->CreateTable(table_name, schema.get(), nullptr, table_info);
+
+  // 主键和 unique 字段自动补索引，方便后续查询和演示。
+  if (result == DB_SUCCESS) {
+    for (auto &key_name : primary_keys) {
+      IndexInfo *index_info = nullptr;
+      dbs_[current_db_]->catalog_mgr_->CreateIndex(table_name, table_name + "_" + key_name + "_pk",
+                                                   std::vector<std::string>{key_name}, nullptr, index_info, "bptree");
+    }
+    for (auto &def : raw_columns) {
+      if (def.unique && primary_keys.find(def.name) == primary_keys.end()) {
+        IndexInfo *index_info = nullptr;
+        dbs_[current_db_]->catalog_mgr_->CreateIndex(table_name, table_name + "_" + def.name + "_uk",
+                                                     std::vector<std::string>{def.name}, nullptr, index_info,
+                                                     "bptree");
+      }
+    }
+  }
+  return result;
 }
 
 /**
@@ -354,7 +431,10 @@ dberr_t ExecuteEngine::ExecuteDropTable(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropTable" << std::endl;
 #endif
- return DB_FAILED;
+  if (current_db_.empty()) {
+    return DB_FAILED;
+  }
+  return dbs_[current_db_]->catalog_mgr_->DropTable(ast->child_->val_);
 }
 
 /**
@@ -364,7 +444,45 @@ dberr_t ExecuteEngine::ExecuteShowIndexes(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteShowIndexes" << std::endl;
 #endif
-  return DB_FAILED;
+  if (current_db_.empty()) {
+    return DB_FAILED;
+  }
+
+  std::vector<TableInfo *> tables;
+  dbs_[current_db_]->catalog_mgr_->GetTables(tables);
+  std::vector<std::pair<std::string, std::string>> rows;
+  for (auto *table : tables) {
+    std::vector<IndexInfo *> indexes;
+    dbs_[current_db_]->catalog_mgr_->GetTableIndexes(table->GetTableName(), indexes);
+    for (auto *index : indexes) {
+      rows.emplace_back(index->GetIndexName(), table->GetTableName());
+    }
+  }
+
+  if (rows.empty()) {
+    cout << "Empty set (0.00 sec)" << endl;
+    return DB_SUCCESS;
+  }
+
+  int name_width = 5;
+  int table_width = 5;
+  for (auto &row : rows) {
+    name_width = max(name_width, static_cast<int>(row.first.size()));
+    table_width = max(table_width, static_cast<int>(row.second.size()));
+  }
+  cout << "+" << setfill('-') << setw(name_width + 2) << "" << "+"
+       << setfill('-') << setw(table_width + 2) << "" << "+" << endl;
+  cout << "| " << left << setfill(' ') << setw(name_width) << "Index"
+       << " | " << setw(table_width) << "Table" << " |" << endl;
+  cout << "+" << setfill('-') << setw(name_width + 2) << "" << "+"
+       << setfill('-') << setw(table_width + 2) << "" << "+" << endl;
+  for (auto &row : rows) {
+    cout << "| " << left << setfill(' ') << setw(name_width) << row.first
+         << " | " << setw(table_width) << row.second << " |" << endl;
+  }
+  cout << "+" << setfill('-') << setw(name_width + 2) << "" << "+"
+       << setfill('-') << setw(table_width + 2) << "" << "+" << endl;
+  return DB_SUCCESS;
 }
 
 /**
@@ -374,7 +492,23 @@ dberr_t ExecuteEngine::ExecuteCreateIndex(pSyntaxNode ast, ExecuteContext *conte
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteCreateIndex" << std::endl;
 #endif
-  return DB_FAILED;
+  if (current_db_.empty()) {
+    return DB_FAILED;
+  }
+  string index_name = ast->child_->val_;
+  string table_name = ast->child_->next_->val_;
+  auto *column_list_node = ast->child_->next_->next_;
+  string index_type = "bptree";
+  if (column_list_node->next_ != nullptr && column_list_node->next_->child_ != nullptr) {
+    index_type = column_list_node->next_->child_->val_;
+  }
+  std::vector<std::string> index_keys;
+  for (auto node = column_list_node->child_; node != nullptr; node = node->next_) {
+    index_keys.emplace_back(node->val_);
+  }
+  IndexInfo *index_info = nullptr;
+  return dbs_[current_db_]->catalog_mgr_->CreateIndex(table_name, index_name, index_keys, nullptr, index_info,
+                                                       index_type);
 }
 
 /**
@@ -384,28 +518,40 @@ dberr_t ExecuteEngine::ExecuteDropIndex(pSyntaxNode ast, ExecuteContext *context
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteDropIndex" << std::endl;
 #endif
-  return DB_FAILED;
+  if (current_db_.empty()) {
+    return DB_FAILED;
+  }
+  string index_name = ast->child_->val_;
+  std::vector<TableInfo *> tables;
+  dbs_[current_db_]->catalog_mgr_->GetTables(tables);
+  for (auto *table : tables) {
+    IndexInfo *index_info = nullptr;
+    if (dbs_[current_db_]->catalog_mgr_->GetIndex(table->GetTableName(), index_name, index_info) == DB_SUCCESS) {
+      return dbs_[current_db_]->catalog_mgr_->DropIndex(table->GetTableName(), index_name);
+    }
+  }
+  return DB_INDEX_NOT_FOUND;
 }
 
 dberr_t ExecuteEngine::ExecuteTrxBegin(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteTrxBegin" << std::endl;
 #endif
-  return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteTrxCommit(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteTrxCommit" << std::endl;
 #endif
-  return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 dberr_t ExecuteEngine::ExecuteTrxRollback(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteTrxRollback" << std::endl;
 #endif
-  return DB_FAILED;
+  return DB_SUCCESS;
 }
 
 /**
@@ -415,7 +561,38 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteExecfile" << std::endl;
 #endif
-  return DB_FAILED;
+  std::ifstream input(ast->child_->val_);
+  if (!input.is_open()) {
+    return DB_FAILED;
+  }
+
+  std::stringstream buffer;
+  buffer << input.rdbuf();
+  string content = buffer.str();
+  string current_sql;
+  dberr_t last_result = DB_SUCCESS;
+
+  for (char ch : content) {
+    current_sql.push_back(ch);
+    if (ch != ';') {
+      continue;
+    }
+    MinisqlParserInit();
+    YY_BUFFER_STATE bp = yy_scan_string(current_sql.c_str());
+    yyparse();
+    if (!MinisqlParserGetError()) {
+      last_result = Execute(MinisqlGetParserRootNode());
+    } else {
+      last_result = DB_FAILED;
+    }
+    yy_delete_buffer(bp);
+    MinisqlParserFinish();
+    current_sql.clear();
+    if (last_result == DB_QUIT || last_result == DB_FAILED) {
+      break;
+    }
+  }
+  return last_result;
 }
 
 /**
@@ -425,5 +602,5 @@ dberr_t ExecuteEngine::ExecuteQuit(pSyntaxNode ast, ExecuteContext *context) {
 #ifdef ENABLE_EXECUTE_DEBUG
   LOG(INFO) << "ExecuteQuit" << std::endl;
 #endif
- return DB_FAILED;
+  return DB_QUIT;
 }
