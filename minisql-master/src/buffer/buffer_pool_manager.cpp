@@ -90,9 +90,6 @@ Page *BufferPoolManager::FetchPage(page_id_t page_id) {
 Page *BufferPoolManager::NewPage(page_id_t &page_id) {
   lock_guard<recursive_mutex> lock(latch_);
 
-  // 0. Allocate a new page from disk (logical page ID)
-  page_id = AllocatePage();
-
   // 1. If all pages in the buffer pool are pinned, return nullptr
   frame_id_t frame_id = TryToFindFreePage();
   if (frame_id == INVALID_FRAME_ID) {
@@ -112,6 +109,9 @@ Page *BufferPoolManager::NewPage(page_id_t &page_id) {
   if (page->page_id_ != INVALID_PAGE_ID) {
     page_table_.erase(page->page_id_);
   }
+
+  // 0. Allocate a new logical page id from disk
+  page_id = AllocatePage();
 
   // 3. Update metadata, zero out memory, and add to page table
   page->page_id_ = page_id;

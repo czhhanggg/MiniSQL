@@ -45,6 +45,8 @@ ADD_SUBDIRECTORY(${THIRD_PARTY_DIR}/googletest ${CMAKE_BINARY_DIR}/googletest-bu
 TARGET_COMPILE_OPTIONS(gtest PRIVATE "-fPIC")
 TARGET_COMPILE_OPTIONS(gtest_main PRIVATE "-fPIC")
 # Thirdparty module glog
+# Disable using system gflags to avoid picking up incompatible headers
+set(WITH_GFLAGS OFF CACHE BOOL "Disable gflags for bundled glog" FORCE)
 ADD_SUBDIRECTORY(${THIRD_PARTY_DIR}/glog ${CMAKE_BINARY_DIR}/glog-build)
 
 # Compile options in debug mode
