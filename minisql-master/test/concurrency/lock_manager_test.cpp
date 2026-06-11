@@ -415,3 +415,25 @@ TEST_F(LockManagerTest, DeadlockDetectionTest2) {
     delete t;
   }
 }
+
+TEST_F(LockManagerTest, UnlockNonExistTest) {
+  RowId r(0, 100);
+  Txn *t = txn_mgr_->Begin();
+
+  // Unlock a row that was never locked by this txn should return false
+  bool res = lock_mgr_->Unlock(t, r);
+  ASSERT_FALSE(res);
+
+  // Unlock with a Txn object not managed by TxnManager should also return false
+  Txn local_txn(9999);
+  ASSERT_FALSE(lock_mgr_->Unlock(&local_txn, r));
+
+  delete t;
+}
+
+TEST_F(LockManagerTest, HasCycleEmptyTest) {
+  txn_id_t newest = INVALID_TXN_ID;
+  // no edges, no cycle
+  ASSERT_FALSE(lock_mgr_->HasCycle(newest));
+  ASSERT_EQ(INVALID_TXN_ID, newest);
+}

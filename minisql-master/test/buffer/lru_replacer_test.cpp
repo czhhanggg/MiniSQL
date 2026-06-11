@@ -41,3 +41,21 @@ TEST(LRUReplacerTest, SampleTest) {
   lru_replacer.Victim(&value);
   EXPECT_EQ(4, value);
 }
+
+TEST(LRUReplacerTest, VictimOnEmptyTest) {
+  LRUReplacer lru_replacer(3);
+
+  int value;
+  // Victim on empty replacer should return false
+  EXPECT_FALSE(lru_replacer.Victim(&value));
+  EXPECT_EQ(0, lru_replacer.Size());
+
+  // Unpin one element then victim should succeed
+  lru_replacer.Unpin(10);
+  EXPECT_EQ(1, lru_replacer.Size());
+  EXPECT_TRUE(lru_replacer.Victim(&value));
+  EXPECT_EQ(0, lru_replacer.Size());
+
+  // Now empty again
+  EXPECT_FALSE(lru_replacer.Victim(&value));
+}
