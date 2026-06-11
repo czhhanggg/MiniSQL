@@ -232,6 +232,20 @@ dberr_t CatalogManager::CreateIndex(const std::string &table_name, const string 
   // 5. Create IndexInfo and initialize it (builds the B+ tree)
   index_info = IndexInfo::Create();
   index_info->Init(index_meta, table_info, buffer_pool_manager_);
+  // Build index from existing table data: scan the table and insert entries
+  // This ensures indexes created after inserts are populated.
+  TableHeap *table_heap = table_info->GetTableHeap();
+  for (TableIterator iter = table_heap->Begin(txn); iter != table_heap->End(); ++iter) {
+    Row row = *iter;
+    Row key_row;
+    row.GetKeyFromRow(table_schema, index_info->GetIndexKeySchema(), key_row);
+    if (index_info->GetIndex()->InsertEntry(key_row, row.GetRowId(), txn) != DB_SUCCESS) {
+      // failed to build index, cleanup and return error
+      index_info->GetIndex()->Destroy();
+      delete index_info;
+      return DB_FAILED;
+    }
+  }
 
   // 6. Allocate a page for the serialized IndexMetadata and persist it
   page_id_t meta_page_id;
