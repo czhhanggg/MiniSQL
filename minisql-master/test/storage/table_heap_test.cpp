@@ -61,3 +61,54 @@ TEST(TableHeapTest, TableHeapSampleTest) {
   }
   ASSERT_EQ(size, 0);
 }
+
+TEST(TableHeapTest, ReuseFreedSlotAfterApplyDelete) {
+  remove(db_file_name.c_str());
+  auto disk_mgr_ = new DiskManager(db_file_name);
+  auto bpm_ = new BufferPoolManager(DEFAULT_BUFFER_POOL_SIZE, disk_mgr_);
+  std::vector<Column *> columns = {new Column("id", TypeId::kTypeInt, 0, false, false),
+                                   new Column("name", TypeId::kTypeChar, 64, 1, true, false),
+                                   new Column("account", TypeId::kTypeFloat, 2, true, false)};
+  auto schema = std::make_shared<Schema>(columns);
+  TableHeap *table_heap = TableHeap::Create(bpm_, schema.get(), nullptr, nullptr, nullptr);
+
+  std::vector<Field> fields_a = {Field(TypeId::kTypeInt, 1),
+                                 Field(TypeId::kTypeChar, const_cast<char *>("alice"), 5, false),
+                                 Field(TypeId::kTypeFloat, 1.0f)};
+  std::vector<Field> fields_b = {Field(TypeId::kTypeInt, 2),
+                                 Field(TypeId::kTypeChar, const_cast<char *>("bob"), 3, false),
+                                 Field(TypeId::kTypeFloat, 2.0f)};
+  std::vector<Field> fields_c = {Field(TypeId::kTypeInt, 3),
+                                 Field(TypeId::kTypeChar, const_cast<char *>("carol"), 5, false),
+                                 Field(TypeId::kTypeFloat, 3.0f)};
+
+  Row row_a(fields_a);
+  Row row_b(fields_b);
+  Row row_c(fields_c);
+  ASSERT_TRUE(table_heap->InsertTuple(row_a, nullptr));
+  ASSERT_TRUE(table_heap->InsertTuple(row_b, nullptr));
+  ASSERT_TRUE(table_heap->InsertTuple(row_c, nullptr));
+
+  RowId freed_rid = row_b.GetRowId();
+  ASSERT_TRUE(table_heap->MarkDelete(freed_rid, nullptr));
+  table_heap->ApplyDelete(freed_rid, nullptr);
+
+  std::vector<Field> fields_d = {Field(TypeId::kTypeInt, 4),
+                                 Field(TypeId::kTypeChar, const_cast<char *>("dave"), 4, false),
+                                 Field(TypeId::kTypeFloat, 4.0f)};
+  Row row_d(fields_d);
+  ASSERT_TRUE(table_heap->InsertTuple(row_d, nullptr));
+  ASSERT_EQ(freed_rid, row_d.GetRowId());
+
+  size_t live_tuple_count = 0;
+  bool found_new_row = false;
+  for (auto it = table_heap->Begin(nullptr); it != table_heap->End(); ++it) {
+    live_tuple_count++;
+    ASSERT_EQ(CmpBool::kFalse, it->GetField(0)->CompareEquals(Field(TypeId::kTypeInt, 2)));
+    if (it->GetField(0)->CompareEquals(Field(TypeId::kTypeInt, 4)) == CmpBool::kTrue) {
+      found_new_row = true;
+    }
+  }
+  ASSERT_EQ(live_tuple_count, 3);
+  ASSERT_TRUE(found_new_row);
+}

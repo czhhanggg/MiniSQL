@@ -101,3 +101,38 @@ TEST(TupleTest, RowTest) {
   ASSERT_TRUE(table_page.MarkDelete(row.GetRowId(), nullptr, nullptr, nullptr));
   table_page.ApplyDelete(row.GetRowId(), nullptr, nullptr);
 }
+
+TEST(TupleTest, TablePageMetadataNavigationTest) {
+  TablePage table_page;
+  std::vector<Column *> columns = {new Column("id", TypeId::kTypeInt, 0, false, false),
+                                   new Column("name", TypeId::kTypeChar, 64, 1, true, false),
+                                   new Column("account", TypeId::kTypeFloat, 2, true, false)};
+  auto schema = std::make_shared<Schema>(columns);
+
+  table_page.Init(0, INVALID_PAGE_ID, nullptr, nullptr);
+  std::vector<Row> rows;
+  for (int i = 0; i < 4; i++) {
+    std::string name = "row" + std::to_string(i);
+    std::vector<Field> fields = {Field(TypeId::kTypeInt, i),
+                                 Field(TypeId::kTypeChar, const_cast<char *>(name.c_str()),
+                                       static_cast<uint32_t>(name.size()), false),
+                                 Field(TypeId::kTypeFloat, static_cast<float>(i))};
+    rows.emplace_back(fields);
+    ASSERT_TRUE(table_page.InsertTuple(rows.back(), schema.get(), nullptr, nullptr, nullptr));
+  }
+
+  ASSERT_TRUE(table_page.MarkDelete(rows[1].GetRowId(), nullptr, nullptr, nullptr));
+  ASSERT_TRUE(table_page.MarkDelete(rows[2].GetRowId(), nullptr, nullptr, nullptr));
+
+  RowId first_rid;
+  ASSERT_TRUE(table_page.GetFirstTupleRid(&first_rid));
+  ASSERT_EQ(rows[0].GetRowId(), first_rid);
+
+  RowId next_rid;
+  ASSERT_TRUE(table_page.GetNextTupleRid(rows[0].GetRowId(), &next_rid));
+  ASSERT_EQ(rows[3].GetRowId(), next_rid);
+
+  table_page.ApplyDelete(rows[0].GetRowId(), nullptr, nullptr);
+  ASSERT_TRUE(table_page.GetFirstTupleRid(&first_rid));
+  ASSERT_EQ(rows[3].GetRowId(), first_rid);
+}

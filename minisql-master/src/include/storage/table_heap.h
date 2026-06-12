@@ -104,6 +104,16 @@ class TableHeap {
   inline page_id_t GetFirstPageId() const { return first_page_id_; }
 
  private:
+  void EnsureHeapMetadata();
+
+  bool IsInsertablePageTracked(TablePage *page, page_id_t page_id) const;
+
+  void LinkInsertablePage(TablePage *page, page_id_t page_id);
+
+  void UnlinkInsertablePage(TablePage *page, page_id_t page_id);
+
+  void RefreshInsertablePage(TablePage *page, page_id_t page_id);
+
   /**
    * create table heap and initialize first page
    */
@@ -118,6 +128,9 @@ class TableHeap {
     ASSERT(page != nullptr, "Failed to create first table page.");
     first_page_id_ = page_id;
     page->Init(page_id, INVALID_PAGE_ID, log_manager_, txn);
+    last_page_id_ = page_id;
+    insertable_head_page_id_ = page_id;
+    heap_metadata_built_ = true;
     buffer_pool_manager_->UnpinPage(page_id, true);
   };
 
@@ -132,9 +145,12 @@ class TableHeap {
  private:
   BufferPoolManager *buffer_pool_manager_;
   page_id_t first_page_id_;
+  page_id_t last_page_id_{INVALID_PAGE_ID};
+  page_id_t insertable_head_page_id_{INVALID_PAGE_ID};
   Schema *schema_;
   [[maybe_unused]] LogManager *log_manager_;
   [[maybe_unused]] LockManager *lock_manager_;
+  bool heap_metadata_built_{false};
 };
 
 #endif  // MINISQL_TABLE_HEAP_H

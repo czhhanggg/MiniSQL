@@ -6,56 +6,135 @@ void TablePage::Init(page_id_t page_id, page_id_t prev_id, LogManager *log_mgr, 
   memcpy(GetData(), &page_id, sizeof(page_id));
   SetPrevPageId(prev_id);
   SetNextPageId(INVALID_PAGE_ID);
+  SetPrevInsertablePageId(INVALID_PAGE_ID);
+  SetNextInsertablePageId(INVALID_PAGE_ID);
   SetFreeSpacePointer(PAGE_SIZE);
   SetTupleCount(0);
+  SetLiveTupleCount(0);
+  memset(GetData() + OFFSET_OCCUPIED_BITMAP, 0, BITMAP_BYTES);
+  memset(GetData() + OFFSET_DELETED_BITMAP, 0, BITMAP_BYTES);
+}
+
+uint32_t TablePage::FindReusableSlot() {
+  uint32_t tuple_count = GetTupleCount();
+  ASSERT(tuple_count <= BITMAP_SLOT_CAPACITY, "Tuple slot count exceeds bitmap capacity.");
+  for (uint32_t word_idx = 0; word_idx < BITMAP_WORD_COUNT; ++word_idx) {
+    uint32_t base_slot = word_idx * BITMAP_WORD_BITS;
+    if (base_slot >= tuple_count) {
+      break;
+    }
+    uint64_t occupied_word = GetOccupiedBitmap()[word_idx];
+    uint32_t valid_bits = tuple_count - base_slot;
+    if (valid_bits < BITMAP_WORD_BITS) {
+      uint64_t valid_mask = (1ULL << valid_bits) - 1;
+      occupied_word |= ~valid_mask;
+    }
+    if (~occupied_word != 0) {
+      for (uint32_t bit = 0; bit < BITMAP_WORD_BITS; ++bit) {
+        uint32_t slot_num = base_slot + bit;
+        if (slot_num >= tuple_count) {
+          break;
+        }
+        if ((occupied_word & (1ULL << bit)) == 0) {
+          return slot_num;
+        }
+      }
+    }
+  }
+  return tuple_count;
+}
+
+int32_t TablePage::FindLiveSlot(uint32_t start_slot) {
+  uint32_t tuple_count = GetTupleCount();
+  ASSERT(tuple_count <= BITMAP_SLOT_CAPACITY, "Tuple slot count exceeds bitmap capacity.");
+  if (start_slot >= tuple_count) {
+    return -1;
+  }
+
+  uint32_t start_word = start_slot / BITMAP_WORD_BITS;
+  for (uint32_t word_idx = start_word; word_idx < BITMAP_WORD_COUNT; ++word_idx) {
+    uint32_t base_slot = word_idx * BITMAP_WORD_BITS;
+    if (base_slot >= tuple_count) {
+      break;
+    }
+
+    uint64_t live_word = GetOccupiedBitmap()[word_idx] & ~GetDeletedBitmap()[word_idx];
+    uint32_t start_bit = word_idx == start_word ? start_slot % BITMAP_WORD_BITS : 0;
+    if (start_bit != 0) {
+      live_word &= (~0ULL << start_bit);
+    }
+
+    uint32_t valid_bits = tuple_count - base_slot;
+    if (valid_bits < BITMAP_WORD_BITS) {
+      uint64_t valid_mask = (1ULL << valid_bits) - 1;
+      live_word &= valid_mask;
+    }
+
+    if (live_word != 0) {
+      for (uint32_t bit = start_bit; bit < BITMAP_WORD_BITS; ++bit) {
+        uint32_t slot_num = base_slot + bit;
+        if (slot_num >= tuple_count) {
+          break;
+        }
+        if ((live_word & (1ULL << bit)) != 0) {
+          return static_cast<int32_t>(slot_num);
+        }
+      }
+    }
+  }
+  return -1;
+}
+
+bool TablePage::CanHostAnyTuple() {
+  bool has_reusable_slot = FindReusableSlot() < GetTupleCount();
+  uint32_t min_required = has_reusable_slot ? 1U : static_cast<uint32_t>(SIZE_TUPLE + 1);
+  return GetFreeSpaceRemaining() >= min_required;
 }
 
 bool TablePage::InsertTuple(Row &row, Schema *schema, Txn *txn, LockManager *lock_manager, LogManager *log_manager) {
   uint32_t serialized_size = row.GetSerializedSize(schema);
   ASSERT(serialized_size > 0, "Can not have empty row.");
-  if (GetFreeSpaceRemaining() < serialized_size + SIZE_TUPLE) {
+
+  uint32_t slot_num = FindReusableSlot();
+  bool reuse_existing_slot = slot_num < GetTupleCount();
+  uint32_t required_space = serialized_size + (reuse_existing_slot ? 0U : static_cast<uint32_t>(SIZE_TUPLE));
+  if (GetFreeSpaceRemaining() < required_space) {
     return false;
   }
-  // Try to find a free slot to reuse.
-  uint32_t i;
-  for (i = 0; i < GetTupleCount(); i++) {
-    // If the slot is empty, i.e. its tuple has size 0,
-    if (GetTupleSize(i) == 0) {
-      // Then we break out of the loop at index i.
-      break;
+  if (!reuse_existing_slot) {
+    if (slot_num >= BITMAP_SLOT_CAPACITY) {
+      return false;
     }
+    SetTupleCount(slot_num + 1);
   }
-  // Otherwise we claim available free space..
+
   SetFreeSpacePointer(GetFreeSpacePointer() - serialized_size);
   uint32_t __attribute__((unused)) write_bytes = row.SerializeTo(GetData() + GetFreeSpacePointer(), schema);
   ASSERT(write_bytes == serialized_size, "Unexpected behavior in row serialize.");
 
-  // Set the tuple.
-  SetTupleOffsetAtSlot(i, GetFreeSpacePointer());
-  SetTupleSize(i, serialized_size);
-  // Set rid
-  row.SetRowId(RowId(GetTablePageId(), i));
-  if (i == GetTupleCount()) {
-    SetTupleCount(GetTupleCount() + 1);
-  }
+  SetTupleOffsetAtSlot(slot_num, GetFreeSpacePointer());
+  SetTupleSize(slot_num, serialized_size);
+  SetSlotOccupied(slot_num, true);
+  SetSlotDeleted(slot_num, false);
+  SetLiveTupleCount(GetLiveTupleCount() + 1);
+  row.SetRowId(RowId(GetTablePageId(), slot_num));
   return true;
 }
 
 bool TablePage::MarkDelete(const RowId &rid, Txn *txn, LockManager *lock_manager, LogManager *log_manager) {
   uint32_t slot_num = rid.GetSlotNum();
-  // If the slot number is invalid, abort.
-  if (slot_num >= GetTupleCount()) {
+  if (slot_num >= GetTupleCount() || !IsSlotOccupied(slot_num)) {
     return false;
   }
+
   uint32_t tuple_size = GetTupleSize(slot_num);
-  // If the tuple is already deleted, abort.
-  if (IsDeleted(tuple_size)) {
+  if (IsDeleted(tuple_size) || IsSlotDeleted(slot_num)) {
     return false;
   }
-  // Mark the tuple as deleted.
-  if (tuple_size > 0) {
-    SetTupleSize(slot_num, SetDeletedFlag(tuple_size));
-  }
+
+  SetTupleSize(slot_num, SetDeletedFlag(tuple_size));
+  SetSlotDeleted(slot_num, true);
+  SetLiveTupleCount(GetLiveTupleCount() - 1);
   return true;
 }
 
@@ -65,20 +144,18 @@ bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn
   uint32_t serialized_size = new_row.GetSerializedSize(schema);
   ASSERT(serialized_size > 0, "Can not have empty row.");
   uint32_t slot_num = old_row->GetRowId().GetSlotNum();
-  // If the slot number is invalid, abort.
-  if (slot_num >= GetTupleCount()) {
+  if (slot_num >= GetTupleCount() || !IsSlotOccupied(slot_num)) {
     return false;
   }
+
   uint32_t tuple_size = GetTupleSize(slot_num);
-  // If the tuple is deleted, abort.
-  if (IsDeleted(tuple_size)) {
+  if (IsDeleted(tuple_size) || IsSlotDeleted(slot_num)) {
     return false;
   }
-  // If there is not enough space to update, we need to update via delete followed by an insert (not enough space).
   if (GetFreeSpaceRemaining() + tuple_size < serialized_size) {
     return false;
   }
-  // Copy out the old value.
+
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
   uint32_t __attribute__((unused)) read_bytes = old_row->DeserializeFrom(GetData() + tuple_offset, schema);
   ASSERT(tuple_size == read_bytes, "Unexpected behavior in tuple deserialize.");
@@ -90,11 +167,10 @@ bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn
   new_row.SerializeTo(GetData() + tuple_offset + tuple_size - serialized_size, schema);
   SetTupleSize(slot_num, serialized_size);
 
-  // Update all tuple offsets.
   for (uint32_t i = 0; i < GetTupleCount(); ++i) {
     uint32_t tuple_offset_i = GetTupleOffsetAtSlot(i);
-    if (GetTupleSize(i) > 0 && tuple_offset_i < tuple_offset + tuple_size) {
-      SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - new_row.GetSerializedSize(schema));
+    if (IsSlotOccupied(i) && tuple_offset_i < tuple_offset + tuple_size) {
+      SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size - serialized_size);
     }
   }
   return true;
@@ -103,12 +179,19 @@ bool TablePage::UpdateTuple(Row &new_row, Row *old_row, Schema *schema, Txn *txn
 void TablePage::ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager) {
   uint32_t slot_num = rid.GetSlotNum();
   ASSERT(slot_num < GetTupleCount(), "Cannot have more slots than tuples.");
+  if (!IsSlotOccupied(slot_num)) {
+    return;
+  }
 
+  uint32_t raw_tuple_size = GetTupleSize(slot_num);
+  bool tuple_was_live = raw_tuple_size != 0 && !IsDeleted(raw_tuple_size);
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
-  uint32_t tuple_size = GetTupleSize(slot_num);
-  // Check if this is a delete operation, i.e. commit a delete.
+  uint32_t tuple_size = raw_tuple_size;
   if (IsDeleted(tuple_size)) {
     tuple_size = UnsetDeletedFlag(tuple_size);
+  }
+  if (tuple_size == 0) {
+    return;
   }
 
   uint32_t free_space_pointer = GetFreeSpacePointer();
@@ -119,11 +202,15 @@ void TablePage::ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager)
   SetFreeSpacePointer(free_space_pointer + tuple_size);
   SetTupleSize(slot_num, 0);
   SetTupleOffsetAtSlot(slot_num, 0);
+  SetSlotOccupied(slot_num, false);
+  SetSlotDeleted(slot_num, false);
+  if (tuple_was_live) {
+    SetLiveTupleCount(GetLiveTupleCount() - 1);
+  }
 
-  // Update all tuple offsets.
   for (uint32_t i = 0; i < GetTupleCount(); ++i) {
     uint32_t tuple_offset_i = GetTupleOffsetAtSlot(i);
-    if (GetTupleSize(i) != 0 && tuple_offset_i < tuple_offset) {
+    if (IsSlotOccupied(i) && tuple_offset_i < tuple_offset) {
       SetTupleOffsetAtSlot(i, tuple_offset_i + tuple_size);
     }
   }
@@ -132,29 +219,32 @@ void TablePage::ApplyDelete(const RowId &rid, Txn *txn, LogManager *log_manager)
 void TablePage::RollbackDelete(const RowId &rid, Txn *txn, LogManager *log_manager) {
   uint32_t slot_num = rid.GetSlotNum();
   ASSERT(slot_num < GetTupleCount(), "We can't have more slots than tuples.");
-  uint32_t tuple_size = GetTupleSize(slot_num);
+  if (!IsSlotOccupied(slot_num)) {
+    return;
+  }
 
-  // Unset the deleted flag.
-  if (IsDeleted(tuple_size)) {
+  uint32_t tuple_size = GetTupleSize(slot_num);
+  if (tuple_size != 0 && (IsDeleted(tuple_size) || IsSlotDeleted(slot_num))) {
     SetTupleSize(slot_num, UnsetDeletedFlag(tuple_size));
+    if (IsSlotDeleted(slot_num)) {
+      SetSlotDeleted(slot_num, false);
+      SetLiveTupleCount(GetLiveTupleCount() + 1);
+    }
   }
 }
 
 bool TablePage::GetTuple(Row *row, Schema *schema, Txn *txn, LockManager *lock_manager) {
   ASSERT(row != nullptr && row->GetRowId().Get() != INVALID_ROWID.Get(), "Invalid row.");
-  // Get the current slot number.
   uint32_t slot_num = row->GetRowId().GetSlotNum();
-  // If somehow we have more slots than tuples, abort the recovery.
-  if (slot_num >= GetTupleCount()) {
+  if (slot_num >= GetTupleCount() || !IsSlotOccupied(slot_num)) {
     return false;
   }
-  // Otherwise get the current tuple size too.
+
   uint32_t tuple_size = GetTupleSize(slot_num);
-  // If the tuple is deleted, abort the recovery.
-  if (IsDeleted(tuple_size)) {
+  if (tuple_size == 0 || IsDeleted(tuple_size) || IsSlotDeleted(slot_num)) {
     return false;
   }
-  // At this point, we have at least a shared lock on the RID. Copy the tuple data into our result.
+
   uint32_t tuple_offset = GetTupleOffsetAtSlot(slot_num);
   uint32_t __attribute__((unused)) read_bytes = row->DeserializeFrom(GetData() + tuple_offset, schema);
   ASSERT(tuple_size == read_bytes, "Unexpected behavior in tuple deserialize.");
@@ -162,27 +252,29 @@ bool TablePage::GetTuple(Row *row, Schema *schema, Txn *txn, LockManager *lock_m
 }
 
 bool TablePage::GetFirstTupleRid(RowId *first_rid) {
-  // Find and return the first valid tuple.
-  for (uint32_t i = 0; i < GetTupleCount(); i++) {
-    if (!IsDeleted(GetTupleSize(i))) {
-      first_rid->Set(GetTablePageId(), i);
-      return true;
-    }
+  if (GetLiveTupleCount() == 0) {
+    first_rid->Set(INVALID_PAGE_ID, 0);
+    return false;
   }
-  first_rid->Set(INVALID_PAGE_ID, 0);
-  return false;
+
+  int32_t slot_num = FindLiveSlot(0);
+  if (slot_num < 0) {
+    first_rid->Set(INVALID_PAGE_ID, 0);
+    return false;
+  }
+
+  first_rid->Set(GetTablePageId(), static_cast<uint32_t>(slot_num));
+  return true;
 }
 
 bool TablePage::GetNextTupleRid(const RowId &cur_rid, RowId *next_rid) {
   ASSERT(cur_rid.GetPageId() == GetTablePageId(), "Wrong table!");
-  // Find and return the first valid tuple after our current slot number.
-  for (auto i = cur_rid.GetSlotNum() + 1; i < GetTupleCount(); i++) {
-    if (!IsDeleted(GetTupleSize(i))) {
-      next_rid->Set(GetTablePageId(), i);
-      return true;
-    }
+  int32_t slot_num = FindLiveSlot(cur_rid.GetSlotNum() + 1);
+  if (slot_num < 0) {
+    next_rid->Set(INVALID_PAGE_ID, 0);
+    return false;
   }
-  // Otherwise return false as there are no more tuples.
-  next_rid->Set(INVALID_PAGE_ID, 0);
-  return false;
+
+  next_rid->Set(GetTablePageId(), static_cast<uint32_t>(slot_num));
+  return true;
 }

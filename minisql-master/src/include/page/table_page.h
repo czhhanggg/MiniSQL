@@ -45,6 +45,22 @@ class TablePage : public Page {
     memcpy(GetData() + OFFSET_NEXT_PAGE_ID, &next_page_id, sizeof(page_id_t));
   }
 
+  page_id_t GetPrevInsertablePageId() {
+    return *reinterpret_cast<page_id_t *>(GetData() + OFFSET_PREV_INSERTABLE_PAGE_ID);
+  }
+
+  page_id_t GetNextInsertablePageId() {
+    return *reinterpret_cast<page_id_t *>(GetData() + OFFSET_NEXT_INSERTABLE_PAGE_ID);
+  }
+
+  void SetPrevInsertablePageId(page_id_t prev_page_id) {
+    memcpy(GetData() + OFFSET_PREV_INSERTABLE_PAGE_ID, &prev_page_id, sizeof(page_id_t));
+  }
+
+  void SetNextInsertablePageId(page_id_t next_page_id) {
+    memcpy(GetData() + OFFSET_NEXT_INSERTABLE_PAGE_ID, &next_page_id, sizeof(page_id_t));
+  }
+
   bool InsertTuple(Row &row, Schema *schema, Txn *txn, LockManager *lock_manager, LogManager *log_manager);
 
   bool MarkDelete(const RowId &rid, Txn *txn, LockManager *lock_manager, LogManager *log_manager);
@@ -62,6 +78,8 @@ class TablePage : public Page {
 
   bool GetNextTupleRid(const RowId &cur_rid, RowId *next_rid);
 
+  bool CanHostAnyTuple();
+
  private:
   uint32_t GetFreeSpacePointer() { return *reinterpret_cast<uint32_t *>(GetData() + OFFSET_FREE_SPACE); }
 
@@ -72,6 +90,14 @@ class TablePage : public Page {
   uint32_t GetTupleCount() { return *reinterpret_cast<uint32_t *>(GetData() + OFFSET_TUPLE_COUNT); }
 
   void SetTupleCount(uint32_t tuple_count) { memcpy(GetData() + OFFSET_TUPLE_COUNT, &tuple_count, sizeof(uint32_t)); }
+
+  uint32_t GetLiveTupleCount() {
+    return *reinterpret_cast<uint32_t *>(GetData() + OFFSET_LIVE_TUPLE_COUNT);
+  }
+
+  void SetLiveTupleCount(uint32_t tuple_count) {
+    memcpy(GetData() + OFFSET_LIVE_TUPLE_COUNT, &tuple_count, sizeof(uint32_t));
+  }
 
   uint32_t GetFreeSpaceRemaining() {
     return GetFreeSpacePointer() - SIZE_TABLE_PAGE_HEADER - SIZE_TUPLE * GetTupleCount();
@@ -93,6 +119,42 @@ class TablePage : public Page {
     memcpy(GetData() + OFFSET_TUPLE_SIZE + SIZE_TUPLE * slot_num, &size, sizeof(uint32_t));
   }
 
+  uint64_t *GetOccupiedBitmap() { return reinterpret_cast<uint64_t *>(GetData() + OFFSET_OCCUPIED_BITMAP); }
+
+  uint64_t *GetDeletedBitmap() { return reinterpret_cast<uint64_t *>(GetData() + OFFSET_DELETED_BITMAP); }
+
+  bool IsSlotOccupied(uint32_t slot_num) {
+    return (GetOccupiedBitmap()[slot_num / BITMAP_WORD_BITS] & (1ULL << (slot_num % BITMAP_WORD_BITS))) != 0;
+  }
+
+  void SetSlotOccupied(uint32_t slot_num, bool occupied) {
+    uint64_t &word = GetOccupiedBitmap()[slot_num / BITMAP_WORD_BITS];
+    uint64_t mask = 1ULL << (slot_num % BITMAP_WORD_BITS);
+    if (occupied) {
+      word |= mask;
+    } else {
+      word &= ~mask;
+    }
+  }
+
+  bool IsSlotDeleted(uint32_t slot_num) {
+    return (GetDeletedBitmap()[slot_num / BITMAP_WORD_BITS] & (1ULL << (slot_num % BITMAP_WORD_BITS))) != 0;
+  }
+
+  void SetSlotDeleted(uint32_t slot_num, bool deleted) {
+    uint64_t &word = GetDeletedBitmap()[slot_num / BITMAP_WORD_BITS];
+    uint64_t mask = 1ULL << (slot_num % BITMAP_WORD_BITS);
+    if (deleted) {
+      word |= mask;
+    } else {
+      word &= ~mask;
+    }
+  }
+
+  uint32_t FindReusableSlot();
+
+  int32_t FindLiveSlot(uint32_t start_slot);
+
   static bool IsDeleted(uint32_t tuple_size) { return static_cast<bool>(tuple_size & DELETE_MASK) || tuple_size == 0; }
 
   static uint32_t SetDeletedFlag(uint32_t tuple_size) { return static_cast<uint32_t>(tuple_size | DELETE_MASK); }
@@ -102,14 +164,23 @@ class TablePage : public Page {
  private:
   static_assert(sizeof(page_id_t) == 4);
   static constexpr uint64_t DELETE_MASK = (1U << (8 * sizeof(uint32_t) - 1));
-  static constexpr size_t SIZE_TABLE_PAGE_HEADER = 24;
+  static constexpr uint32_t BITMAP_WORD_BITS = 64;
+  static constexpr uint32_t BITMAP_WORD_COUNT = 8;
+  static constexpr uint32_t BITMAP_SLOT_CAPACITY = BITMAP_WORD_BITS * BITMAP_WORD_COUNT;
+  static constexpr size_t BITMAP_BYTES = BITMAP_WORD_COUNT * sizeof(uint64_t);
+  static constexpr size_t SIZE_TABLE_PAGE_HEADER = 164;
   static constexpr size_t SIZE_TUPLE = 8;
   static constexpr size_t OFFSET_PREV_PAGE_ID = 8;
   static constexpr size_t OFFSET_NEXT_PAGE_ID = 12;
   static constexpr size_t OFFSET_FREE_SPACE = 16;
   static constexpr size_t OFFSET_TUPLE_COUNT = 20;
-  static constexpr size_t OFFSET_TUPLE_OFFSET = 24;
-  static constexpr size_t OFFSET_TUPLE_SIZE = 28;
+  static constexpr size_t OFFSET_LIVE_TUPLE_COUNT = 24;
+  static constexpr size_t OFFSET_PREV_INSERTABLE_PAGE_ID = 28;
+  static constexpr size_t OFFSET_NEXT_INSERTABLE_PAGE_ID = 32;
+  static constexpr size_t OFFSET_OCCUPIED_BITMAP = 36;
+  static constexpr size_t OFFSET_DELETED_BITMAP = OFFSET_OCCUPIED_BITMAP + BITMAP_BYTES;
+  static constexpr size_t OFFSET_TUPLE_OFFSET = OFFSET_DELETED_BITMAP + BITMAP_BYTES;
+  static constexpr size_t OFFSET_TUPLE_SIZE = OFFSET_TUPLE_OFFSET + 4;
 
  public:
   static constexpr size_t SIZE_MAX_ROW = PAGE_SIZE - SIZE_TABLE_PAGE_HEADER - SIZE_TUPLE;
