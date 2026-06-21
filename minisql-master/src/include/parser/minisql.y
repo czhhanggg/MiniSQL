@@ -27,6 +27,7 @@
 %type <syntax_node> sql_select select_columns column_values column_value operator
 %type <syntax_node> connector where_conditions where_condition
 %type <syntax_node> sql_insert sql_delete sql_update update_values update_value
+%type <syntax_node> insert_value_lists
 %type <syntax_node> sql_quit sql_exec_file
 
 %%
@@ -289,12 +290,24 @@ operator:
   ;
 
 sql_insert:
-  INSERT INTO IDENTIFIER VALUES '(' column_values ')' {
+  INSERT INTO IDENTIFIER VALUES insert_value_lists {
     $$ = CreateSyntaxNode(kNodeInsert, NULL);
     SyntaxNodeAddChildren($$, $3);
-    pSyntaxNode col_val_node = CreateSyntaxNode(kNodeColumnValues, NULL);
-    SyntaxNodeAddChildren(col_val_node, $6);
-    SyntaxNodeAddChildren($$, col_val_node);
+    SyntaxNodeAddChildren($$, $5);
+  }
+  ;
+
+insert_value_lists:
+  '(' column_values ')' ',' insert_value_lists {
+    pSyntaxNode tuple_node = CreateSyntaxNode(kNodeColumnValues, NULL);
+    SyntaxNodeAddChildren(tuple_node, $2);
+    SyntaxNodeAddSibling(tuple_node, $5);
+    $$ = tuple_node;
+  }
+  | '(' column_values ')' {
+    pSyntaxNode tuple_node = CreateSyntaxNode(kNodeColumnValues, NULL);
+    SyntaxNodeAddChildren(tuple_node, $2);
+    $$ = tuple_node;
   }
   ;
 

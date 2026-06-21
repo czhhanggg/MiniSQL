@@ -28,18 +28,24 @@ void yy_delete_buffer(YY_BUFFER_STATE buffer);
 
 ExecuteEngine::ExecuteEngine() {
   mkdir("./databases", 0755);
-  /** When you have completed all the code for
-   *  the test, run it using main.cpp and uncomment
-   *  this part of the code.
-  struct dirent *stdir;
-  while((stdir = readdir(dir)) != nullptr) {
-    if( strcmp( stdir->d_name , "." ) == 0 ||
-        strcmp( stdir->d_name , "..") == 0 ||
-        stdir->d_name[0] == '.')
-      continue;
-    dbs_[stdir->d_name] = new DBStorageEngine(stdir->d_name, false);
+  // Load existing databases from disk on startup
+  DIR *dir = opendir("./databases");
+  if (dir != nullptr) {
+    struct dirent *entry;
+    while ((entry = readdir(dir)) != nullptr) {
+      if (strcmp(entry->d_name, ".") == 0 ||
+          strcmp(entry->d_name, "..") == 0 ||
+          entry->d_name[0] == '.')
+        continue;
+      try {
+        dbs_[entry->d_name] = new DBStorageEngine(entry->d_name, false);
+      } catch (const std::exception &ex) {
+        std::cerr << "[WARN] Skipping database '" << entry->d_name
+                  << "' — failed to load: " << ex.what() << std::endl;
+      }
+    }
+    closedir(dir);
   }
-   **/
 }
 
 std::unique_ptr<AbstractExecutor> ExecuteEngine::CreateExecutor(ExecuteContext *exec_ctx,
@@ -565,6 +571,8 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
     return DB_FAILED;
   }
 
+  auto exec_start = std::chrono::system_clock::now();
+
   std::stringstream buffer;
   buffer << input.rdbuf();
   string content = buffer.str();
@@ -591,6 +599,9 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
       break;
     }
   }
+  auto exec_stop = std::chrono::system_clock::now();
+  double total_sec = double((std::chrono::duration_cast<std::chrono::milliseconds>(exec_stop - exec_start)).count()) / 1000.0;
+  std::cout << "\n[execfile] Total time: " << total_sec << " sec" << std::endl;
   return last_result;
 }
 

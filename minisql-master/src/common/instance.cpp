@@ -35,8 +35,12 @@ DBStorageEngine::DBStorageEngine(std::string db_name, bool init, uint32_t buffer
     bpm_->UnpinPage(CATALOG_META_PAGE_ID, false);
     bpm_->UnpinPage(INDEX_ROOTS_PAGE_ID, false);
   } else {
-    ASSERT(!bpm_->IsPageFree(CATALOG_META_PAGE_ID), "Invalid catalog meta page.");
-    ASSERT(!bpm_->IsPageFree(INDEX_ROOTS_PAGE_ID), "Invalid header page.");
+    if (bpm_->IsPageFree(CATALOG_META_PAGE_ID)) {
+      throw std::runtime_error("Invalid catalog meta page in database file: " + db_file_name_);
+    }
+    if (bpm_->IsPageFree(INDEX_ROOTS_PAGE_ID)) {
+      throw std::runtime_error("Invalid header page in database file: " + db_file_name_);
+    }
   }
   catalog_mgr_ = new CatalogManager(bpm_, nullptr, nullptr, init);
 }
