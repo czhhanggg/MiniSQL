@@ -2,7 +2,6 @@
 
 #include <sys/stat.h>
 
-#include <filesystem>
 #include <stdexcept>
 
 #include "glog/logging.h"
@@ -14,9 +13,12 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file) {
   // directory or file does not exist
   if (!db_io_.is_open()) {
     db_io_.clear();
-    // create a new file
-    std::filesystem::path p = db_file;
-    if (p.has_parent_path()) std::filesystem::create_directories(p.parent_path());
+    // create a new file — ensure parent directory exists
+    size_t last_slash = db_file.find_last_of("/\\");
+    if (last_slash != std::string::npos) {
+      std::string parent_dir = db_file.substr(0, last_slash);
+      mkdir(parent_dir.c_str(), 0755);
+    }
     db_io_.open(db_file, std::ios::binary | std::ios::trunc | std::ios::out);
     db_io_.close();
     // reopen with original mode

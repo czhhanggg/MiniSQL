@@ -5,7 +5,6 @@
 #include <sys/types.h>
 
 #include <chrono>
-#include <filesystem>
 #include <fstream>
 #include <set>
 
@@ -28,7 +27,7 @@ void yy_delete_buffer(YY_BUFFER_STATE buffer);
 }
 
 ExecuteEngine::ExecuteEngine() {
-  std::filesystem::create_directories("./databases");
+  mkdir("./databases", 0755);
   /** When you have completed all the code for
    *  the test, run it using main.cpp and uncomment
    *  this part of the code.
