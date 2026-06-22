@@ -17,7 +17,11 @@ DiskManager::DiskManager(const std::string &db_file) : file_name_(db_file) {
     size_t last_slash = db_file.find_last_of("/\\");
     if (last_slash != std::string::npos) {
       std::string parent_dir = db_file.substr(0, last_slash);
+      #ifdef _WIN32
+      mkdir(parent_dir.c_str());
+#else
       mkdir(parent_dir.c_str(), 0755);
+#endif
     }
     db_io_.open(db_file, std::ios::binary | std::ios::trunc | std::ios::out);
     db_io_.close();

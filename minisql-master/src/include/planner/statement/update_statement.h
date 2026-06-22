@@ -37,7 +37,7 @@ class UpdateStatement : public AbstractStatement {
         break;
       }
       case kNodeConditions: {
-        where_ = MakePredicate(ast->child_, table_name_);
+        where_ = MakePredicate(ast->child_, table_name_, &column_in_condition_, &has_or_);
         break;
       }
       default:
@@ -64,6 +64,12 @@ class UpdateStatement : public AbstractStatement {
   std::string table_name_;
 
   AbstractExpressionRef where_;
+
+  /** Index of columns in condition. */
+  std::vector<uint32_t> column_in_condition_;
+
+  /** Has or in where clause */
+  bool has_or_ = false;
 
   std::unordered_map<uint32_t, AbstractExpressionRef> update_attrs;
 

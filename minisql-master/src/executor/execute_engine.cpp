@@ -27,7 +27,11 @@ void yy_delete_buffer(YY_BUFFER_STATE buffer);
 }
 
 ExecuteEngine::ExecuteEngine() {
+#ifdef _WIN32
+  mkdir("./databases");
+#else
   mkdir("./databases", 0755);
+#endif
   // Load existing databases from disk on startup
   DIR *dir = opendir("./databases");
   if (dir != nullptr) {
@@ -580,6 +584,10 @@ dberr_t ExecuteEngine::ExecuteExecfile(pSyntaxNode ast, ExecuteContext *context)
   dberr_t last_result = DB_SUCCESS;
 
   for (char ch : content) {
+    // Skip carriage return — Windows CRLF line endings break the lexer
+    if (ch == '\r') {
+      continue;
+    }
     current_sql.push_back(ch);
     if (ch != ';') {
       continue;
