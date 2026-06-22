@@ -1,6 +1,6 @@
-#line 2 "../../parser/minisql_lex.c"
+#line 2 "src/parser/minisql_lex.c"
 
-#line 4 "../../parser/minisql_lex.c"
+#line 4 "src/parser/minisql_lex.c"
 
 #define  YY_INT_ALIGNED short int
 
@@ -406,7 +406,7 @@ static const flex_int16_t yy_accept[175] =
 static const YY_CHAR yy_ec[256] =
     {   0,
         1,    1,    1,    1,    1,    1,    1,    1,    2,    3,
-        2,    2,    1,    1,    1,    1,    1,    1,    1,    1,
+        2,    2,    2,    1,    1,    1,    1,    1,    1,    1,
         1,    1,    1,    1,    1,    1,    1,    1,    1,    1,
         1,    2,    1,    4,    1,    1,    1,    1,    5,    6,
         7,    8,    1,    9,   10,   11,    1,   12,   12,   12,
@@ -571,15 +571,15 @@ int yy_flex_debug = 0;
 #define YY_MORE_ADJ 0
 #define YY_RESTORE_YY_MORE_OFFSET
 char *yytext;
-#line 1 "minisql.l"
-#line 2 "minisql.l"
+#line 1 "src/include/parser/minisql.l"
+#line 2 "src/include/parser/minisql.l"
     #include <stdio.h>
     #include "parser/parser.h"
     #include "parser/minisql_yacc.h"
     int yywrap();
     extern YYSTYPE yylval;
-#line 582 "../../parser/minisql_lex.c"
-#line 583 "../../parser/minisql_lex.c"
+#line 582 "src/parser/minisql_lex.c"
+#line 583 "src/parser/minisql_lex.c"
 
 #define INITIAL 0
 
@@ -796,10 +796,10 @@ YY_DECL
 		}
 
 	{
-#line 15 "minisql.l"
+#line 15 "src/include/parser/minisql.l"
 
 
-#line 803 "../../parser/minisql_lex.c"
+#line 803 "src/parser/minisql_lex.c"
 
 	while ( /*CONSTCOND*/1 )		/* loops until end-of-file is reached */
 		{
@@ -869,7 +869,7 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 /* rule 1 can match eol */
 YY_RULE_SETUP
-#line 17 "minisql.l"
+#line 17 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   yylval.syntax_node = CreateSyntaxNode(kNodeString, yytext);
@@ -878,7 +878,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 2:
 YY_RULE_SETUP
-#line 23 "minisql.l"
+#line 23 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return CREATE;
@@ -886,7 +886,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 3:
 YY_RULE_SETUP
-#line 28 "minisql.l"
+#line 28 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return DROP;
@@ -894,7 +894,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 4:
 YY_RULE_SETUP
-#line 33 "minisql.l"
+#line 33 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return SELECT;
@@ -902,7 +902,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 38 "minisql.l"
+#line 38 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return INSERT;
@@ -910,7 +910,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 43 "minisql.l"
+#line 43 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return DELETE;
@@ -918,7 +918,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 48 "minisql.l"
+#line 48 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return UPDATE;
@@ -926,7 +926,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 53 "minisql.l"
+#line 53 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return TRXBEGIN;
@@ -934,7 +934,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 58 "minisql.l"
+#line 58 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return TRXCOMMIT;
@@ -942,7 +942,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 63 "minisql.l"
+#line 63 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return TRXROLLBACK;
@@ -950,7 +950,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 68 "minisql.l"
+#line 68 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return QUIT;
@@ -958,7 +958,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 73 "minisql.l"
+#line 73 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return EXECFILE;
@@ -966,7 +966,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 78 "minisql.l"
+#line 78 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return SHOW;
@@ -974,7 +974,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 83 "minisql.l"
+#line 83 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return USE;
@@ -982,7 +982,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 88 "minisql.l"
+#line 88 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return USING;
@@ -990,7 +990,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 93 "minisql.l"
+#line 93 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return DATABASE;
@@ -998,7 +998,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 98 "minisql.l"
+#line 98 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return DATABASES;
@@ -1006,7 +1006,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 103 "minisql.l"
+#line 103 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return TABLE;
@@ -1014,7 +1014,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 108 "minisql.l"
+#line 108 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return TABLES;
@@ -1022,7 +1022,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 113 "minisql.l"
+#line 113 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return INDEX;
@@ -1030,7 +1030,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 118 "minisql.l"
+#line 118 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return INDEXES;
@@ -1038,7 +1038,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 123 "minisql.l"
+#line 123 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ON;
@@ -1046,7 +1046,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 128 "minisql.l"
+#line 128 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return FROM;
@@ -1054,7 +1054,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 133 "minisql.l"
+#line 133 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return WHERE;
@@ -1062,7 +1062,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 138 "minisql.l"
+#line 138 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return INTO;
@@ -1070,7 +1070,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 143 "minisql.l"
+#line 143 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return SET;
@@ -1078,7 +1078,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 148 "minisql.l"
+#line 148 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return VALUES;
@@ -1086,7 +1086,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 153 "minisql.l"
+#line 153 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return PRIMARY;
@@ -1094,7 +1094,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 158 "minisql.l"
+#line 158 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return KEY;
@@ -1102,7 +1102,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 163 "minisql.l"
+#line 163 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return UNIQUE;
@@ -1110,7 +1110,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 168 "minisql.l"
+#line 168 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return CHAR;
@@ -1118,7 +1118,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 173 "minisql.l"
+#line 173 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return INT;
@@ -1126,7 +1126,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 178 "minisql.l"
+#line 178 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return FLOAT;
@@ -1134,7 +1134,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 183 "minisql.l"
+#line 183 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return AND;
@@ -1142,7 +1142,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 188 "minisql.l"
+#line 188 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return OR;
@@ -1150,7 +1150,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 193 "minisql.l"
+#line 193 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return NOT;
@@ -1158,7 +1158,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 198 "minisql.l"
+#line 198 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return IS;
@@ -1166,7 +1166,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 203 "minisql.l"
+#line 203 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return FLAGNULL;
@@ -1174,7 +1174,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 208 "minisql.l"
+#line 208 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   yylval.syntax_node = CreateSyntaxNode(kNodeIdentifier, yytext);
@@ -1183,7 +1183,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 214 "minisql.l"
+#line 214 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   yylval.syntax_node = CreateSyntaxNode(kNodeNumber, yytext);
@@ -1192,7 +1192,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 220 "minisql.l"
+#line 220 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   yylval.syntax_node = CreateSyntaxNode(kNodeNumber, yytext);
@@ -1201,7 +1201,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 226 "minisql.l"
+#line 226 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return EQ;
@@ -1209,7 +1209,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 231 "minisql.l"
+#line 231 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return NE;
@@ -1217,7 +1217,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 236 "minisql.l"
+#line 236 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return LE;
@@ -1225,7 +1225,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 241 "minisql.l"
+#line 241 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return GE;
@@ -1233,7 +1233,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 246 "minisql.l"
+#line 246 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return (',');
@@ -1241,7 +1241,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 251 "minisql.l"
+#line 251 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ('*');
@@ -1249,7 +1249,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 256 "minisql.l"
+#line 256 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return (';');
@@ -1257,7 +1257,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 261 "minisql.l"
+#line 261 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ('\'');
@@ -1265,7 +1265,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 266 "minisql.l"
+#line 266 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ('<');
@@ -1273,7 +1273,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 271 "minisql.l"
+#line 271 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ('>');
@@ -1281,7 +1281,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 276 "minisql.l"
+#line 276 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return ('(');
@@ -1289,7 +1289,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 281 "minisql.l"
+#line 281 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
   return (')');
@@ -1298,14 +1298,14 @@ YY_RULE_SETUP
 case 54:
 /* rule 54 can match eol */
 YY_RULE_SETUP
-#line 286 "minisql.l"
+#line 286 "src/include/parser/minisql.l"
 {
   MinisqlParserMovePos(yylineno, yytext);
 }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 290 "minisql.l"
+#line 290 "src/include/parser/minisql.l"
 {
   char str[128] = {0};
   sprintf(str, "Unrecognized token [%s] in input sql.", yytext);
@@ -1314,10 +1314,10 @@ YY_RULE_SETUP
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 296 "minisql.l"
+#line 296 "src/include/parser/minisql.l"
 ECHO;
 	YY_BREAK
-#line 1321 "../../parser/minisql_lex.c"
+#line 1321 "src/parser/minisql_lex.c"
 case YY_STATE_EOF(INITIAL):
 	yyterminate();
 
@@ -2334,7 +2334,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 296 "minisql.l"
+#line 296 "src/include/parser/minisql.l"
 
 int yywrap() {
 	return 1;

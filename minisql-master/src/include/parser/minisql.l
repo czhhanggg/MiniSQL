@@ -283,7 +283,7 @@ LD    {L}|{D}
   return (')');
 }
 
-[ \t\v\n\f] {
+[ \t\v\n\f\r] {
   MinisqlParserMovePos(yylineno, yytext);
 }
 
